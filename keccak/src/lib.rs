@@ -165,6 +165,7 @@ macro_rules! impl_keccak {
             keccak_p(state, round_count);
         }
 
+        #[cfg(not(any(target_arch = "valida", all(target_arch = "aarch64", feature = "asm"))))]
         /// Keccak-f sponge function
         pub fn $fname(state: &mut [$type; PLEN]) {
             keccak_p(state, <$type>::KECCAK_F_ROUND_COUNT);
@@ -197,6 +198,49 @@ pub fn f1600(state: &mut [u64; PLEN]) {
     } else {
         keccak_p(state, u64::KECCAK_F_ROUND_COUNT);
     }
+}
+
+#[cfg(target_arch = "valida")]
+fn u64_to_u8_le(buffer: [u64; 25]) -> [u8; 200] {
+    let mut result = [0u8; 200];
+    for i in 0..25 {
+        let bytes = buffer[i].to_le_bytes();
+        let start = i * 8;
+        result[start..start+8].copy_from_slice(&bytes);
+    }
+    result
+}
+
+#[cfg(target_arch = "valida")]
+fn u8_to_u64_le(buffer: [u8; 200]) -> [u64; 25] {
+    let mut result = [0u64; 25];
+    for i in 0..25 {
+        let start = i * 8;
+        let mut bytes = [0u8; 8];
+        bytes.copy_from_slice(&buffer[start..start+8]);
+        result[i] = u64::from_le_bytes(bytes);
+    }
+    result
+}
+
+#[cfg(target_arch = "valida")]
+extern "C" {
+    fn keccak_permutation(buffer: *mut u8);
+}
+#[cfg(target_arch = "valida")]
+/// Performs the Keccak-f[1600] permutation on the given buffer using Valida's keccak chip for the permutation.
+/// 
+/// This is the core permutation function used in the Keccak hash function family.
+/// The buffer represents the 1600-bit state as an array of 25 64-bit words.
+/// 
+/// # Arguments
+/// * `buffer` - Mutable reference to an array of 25 u64 values representing the state
+pub fn f1600(buffer: &mut [u64; 25]) {
+    let mut buffer_u8 = u64_to_u8_le(*buffer);
+    unsafe {
+        keccak_permutation(buffer_u8.as_mut_ptr());
+    }
+    *buffer = u8_to_u64_le(buffer_u8);
 }
 
 #[cfg(feature = "simd")]
