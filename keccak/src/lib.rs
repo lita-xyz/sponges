@@ -200,29 +200,6 @@ pub fn f1600(state: &mut [u64; PLEN]) {
 }
 
 #[cfg(target_arch = "valida")]
-fn u64_to_u8_le(buffer: [u64; 25]) -> [u8; 200] {
-    let mut result = [0u8; 200];
-    for i in 0..25 {
-        let bytes = buffer[i].to_le_bytes();
-        let start = i * 8;
-        result[start..start+8].copy_from_slice(&bytes);
-    }
-    result
-}
-
-#[cfg(target_arch = "valida")]
-fn u8_to_u64_le(buffer: [u8; 200]) -> [u64; 25] {
-    let mut result = [0u64; 25];
-    for i in 0..25 {
-        let start = i * 8;
-        let mut bytes = [0u8; 8];
-        bytes.copy_from_slice(&buffer[start..start+8]);
-        result[i] = u64::from_le_bytes(bytes);
-    }
-    result
-}
-
-#[cfg(target_arch = "valida")]
 extern "C" {
     fn keccak_permutation(buffer: *mut u8);
 }
@@ -235,11 +212,9 @@ extern "C" {
 /// # Arguments
 /// * `buffer` - Mutable reference to an array of 25 u64 values representing the state
 pub fn f1600(buffer: &mut [u64; 25]) {
-    let mut buffer_u8 = u64_to_u8_le(*buffer);
     unsafe {
-        keccak_permutation(buffer_u8.as_mut_ptr());
+        keccak_permutation(core::mem::transmute(buffer.as_mut_ptr()));
     }
-    *buffer = u8_to_u64_le(buffer_u8);
 }
 
 #[cfg(target_arch = "valida")]
@@ -247,12 +222,9 @@ pub fn p1600(buffer: &mut [u64; 25], round_count: usize) {
     if round_count != 24 {
         panic!("Unexpected number of rounds for valida intrinsic");
     }
-
-    let mut buffer_u8 = u64_to_u8_le(*buffer);
     unsafe {
-        keccak_permutation(buffer_u8.as_mut_ptr());
+        keccak_permutation(core::mem::transmute(buffer.as_mut_ptr()));
     }
-    *buffer = u8_to_u64_le(buffer_u8);
 }
 
 #[cfg(feature = "simd")]
