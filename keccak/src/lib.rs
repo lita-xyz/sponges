@@ -165,7 +165,6 @@ macro_rules! impl_keccak {
             keccak_p(state, round_count);
         }
 
-        #[cfg(not(any(target_arch = "valida", all(target_arch = "aarch64", feature = "asm"))))]
         /// Keccak-f sponge function
         pub fn $fname(state: &mut [$type; PLEN]) {
             keccak_p(state, <$type>::KECCAK_F_ROUND_COUNT);
@@ -177,7 +176,7 @@ impl_keccak!(p200, f200, u8);
 impl_keccak!(p400, f400, u16);
 impl_keccak!(p800, f800, u32);
 
-#[cfg(not(all(target_arch = "aarch64", feature = "asm")))]
+#[cfg(not(any(target_arch = "valida", all(target_arch = "aarch64", feature = "asm"))))]
 impl_keccak!(p1600, f1600, u64);
 
 /// Keccak-p[1600, rc] permutation.
@@ -236,6 +235,19 @@ extern "C" {
 /// # Arguments
 /// * `buffer` - Mutable reference to an array of 25 u64 values representing the state
 pub fn f1600(buffer: &mut [u64; 25]) {
+    let mut buffer_u8 = u64_to_u8_le(*buffer);
+    unsafe {
+        keccak_permutation(buffer_u8.as_mut_ptr());
+    }
+    *buffer = u8_to_u64_le(buffer_u8);
+}
+
+#[cfg(target_arch = "valida")]
+pub fn p1600(buffer: &mut [u64; 25], round_count: usize) {
+    if round_count != 24 {
+        panic!("Unexpected number of rounds for valida intrinsic");
+    }
+
     let mut buffer_u8 = u64_to_u8_le(*buffer);
     unsafe {
         keccak_permutation(buffer_u8.as_mut_ptr());
